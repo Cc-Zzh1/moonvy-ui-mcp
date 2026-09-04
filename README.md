@@ -29,6 +29,8 @@
 - 圆角、描边、阴影
 - 可直接参考的 CSS 属性对象
 
+样式结果会同时返回源单位和 CSS 换算信息。Genome 的几何与效果数值保留为源 `px`，`units` 会明确给出 `cssUnit`、`scale` 和换算关系；移动端画板默认按 `750rpx` 基准生成整套 CSS。例如宽度为 `375px` 的画板使用 `1px = 2rpx`，阴影源值 `0px 4px 5.8px 0px` 会生成 `0rpx 8rpx 11.6rpx 0rpx`。可通过 `MOONVY_CSS_UNIT=px|rpx|auto`、`MOONVY_RPX_BASE_WIDTH` 和 `MOONVY_RPX_SCALE` 调整。
+
 ## 数据链路
 
 ```text
