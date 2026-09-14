@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-09-14",
+  "projectId": "89f75621-a0e7-4122-b9ee-b6b703e1c826",
+  "dirId": "cf67c54c-8e2b-4809-9e4d-fc6512d0e0be",
+  "designs": [
+    {
+      "fileId": "828bd282-2337-48cb-92ef-61c22555c2fc",
+      "samples": [
+        { "nodeId": "1462:20618", "canvasPosition": [32, 536], "css": { "width": "686rpx", "height": "128rpx", "background": "radial-gradient(192.34% 97.67% at 2.53% 2.33%, #f4edff 0%, #dff1ff 80.45%, #ffffff 100%)", "border": "2rpx solid #ffffff", "boxSizing": "border-box", "boxShadow": "0rpx 8rpx 11.6rpx 0rpx rgba(158, 122, 212, 0.1)" } },
+        { "nodeId": "1462:20626", "canvasPosition": [32, 712], "css": { "width": "686rpx", "height": "128rpx", "background": "radial-gradient(192.34% 97.67% at 2.53% 2.33%, #f4edff 0%, #dff1ff 80.45%, #ffffff 100%)", "border": "2rpx solid #ffffff", "boxSizing": "border-box", "boxShadow": "0rpx 8rpx 11.6rpx 0rpx rgba(158, 122, 212, 0.1)" } },
+        { "nodeId": "1462:20623", "canvasPosition": [470, 566], "css": { "width": "224rpx", "height": "68rpx", "borderRadius": "50rpx", "background": "linear-gradient(96deg, #38d5f1 0.98%, #9494ff 119.7%)" } },
+        { "nodeId": "1462:20507", "canvasPosition": [200, 236], "css": { "fontSize": "32rpx", "lineHeight": "150%", "color": "#324974" } }
+      ]
+    },
+    {
+      "fileId": "03c13813-6ccc-4875-ac4e-3887c666782a",
+      "samples": [
+        { "nodeId": "1360:20329", "canvasPosition": [48, 882], "css": { "width": "168rpx", "height": "36rpx", "fontSize": "24rpx", "lineHeight": "150%", "color": "#ff5f57" } },
+        { "nodeId": "1360:20276", "canvasPosition": [0, 392], "css": { "width": "750rpx", "height": "164rpx", "background": "linear-gradient(180deg, rgba(255, 255, 255, 0) 11.07%, #ffffff 61.89%)" } }
+      ]
+    },
+    {
+      "fileId": "9a035e5e-5df1-45e9-883b-783d18665f70",
+      "samples": [
+        { "nodeId": "1390:23075", "canvasPosition": [32, 240], "css": { "width": "686rpx", "height": "384rpx", "borderRadius": "32rpx", "border": "2rpx solid #74c3fa", "boxSizing": "border-box", "background": "linear-gradient(188.49deg, #eff7ff 11.84%, #9fd5fb 98.89%)" } },
+        { "nodeId": "1390:23087", "canvasPosition": [52, 398], "css": { "width": "322rpx", "height": "192rpx", "borderRadius": "16rpx", "background": "linear-gradient(190.72deg, #f1f8fe 8.66%, #e3f3ff 100.57%)", "boxShadow": "0rpx 4rpx 8rpx 0rpx #9acced" } }
+      ]
+    },
+    {
+      "fileId": "cbab58b2-3ace-49d7-b647-6c8f7214aa86",
+      "samples": [
+        { "nodeId": "1374:20038", "canvasPosition": [72, 704], "css": { "width": "606rpx", "height": "334rpx", "fontSize": "28rpx", "lineHeight": "200%", "textAlign": "justify" } },
+        { "nodeId": "1374:20037", "canvasPosition": [56, 688], "css": { "width": "638rpx", "height": "366rpx", "border": "2rpx solid #ffffff", "boxSizing": "border-box", "background": "linear-gradient(180deg, #f8f9ff 9.3%, rgba(255, 255, 255, 0.1) 100%)", "boxShadow": "0rpx 8rpx 11.6rpx 0rpx rgba(158, 122, 212, 0.1)" } }
+      ]
+    }
+  ]
+}

@@ -20,7 +20,7 @@ import {
 } from './moonvy-client.js';
 
 const server = new McpServer(
-  { name: 'moonvy-ui-mcp', version: '0.1.1' },
+  { name: 'moonvy-ui-mcp', version: '0.1.2' },
   {
     instructions: [
       'Only read Moonvy projects the user is authorized to access. If a URL contains only projectId/dirId, call moonvy_list_pages first and select a concrete design file URL.',
@@ -193,8 +193,9 @@ server.registerTool('moonvy_get_ui_spec', {
     }),
     implementationNotes: [
       'Prefer the returned exact CSS values over visual guessing.',
-      'Layout and token numbers use the source px coordinate system; each result includes units describing the CSS unit, scale, and conversion relation.',
+      'Layout numbers use source px; units describes CSS length conversion. Typography.lineHeightUnit and tokens.lineHeightDetails distinguish percentages, px, and automatic line heights; legacy tokens.lineHeights contains values only.',
       'CSS lengths use one unit consistently. Mobile artboards default to rpx using artboardWidth -> 750rpx (for a 375px artboard, 1px = 2rpx).',
+      'Percentage line heights and gradient percentages are not lengths and are not multiplied by the px/rpx scale.',
       'relativeX/relativeY are normalized to the parent even when Moonvy stores artboard children in an already-local coordinate space.',
       'Spacing tokens are inferred from normalized parent padding and positive sibling gaps.',
       'Use moonvy_download_asset for slice, snapshot, or image-fill nodes.',

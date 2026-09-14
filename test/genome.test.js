@@ -8,6 +8,7 @@ import {
   extractTokens,
   findNodeWithParent,
   flattenGenome,
+  styleToCss,
 } from '../src/genome.js';
 import { normalizeToken, parseMoonvyUrl } from '../src/moonvy-client.js';
 
@@ -160,7 +161,7 @@ test('Moonvy native gradient, stroke, shadow, artboard coordinates, and version 
   assert.equal(style.layout.right, 16);
   assert.equal(style.layout.bottom, 480);
   assert.equal(style.layout.coordinateSpace, 'parent');
-  assert.equal(style.background, 'radial-gradient(circle at 2.5333% 2.3305%, #f4edff 0%, #dff1ff 80.4463%, #ffffff 100%)');
+  assert.equal(style.background, 'radial-gradient(192.34% 97.67% at 2.53% 2.33%, #f4edff 0%, #dff1ff 80.45%, #ffffff 100%)');
   assert.equal(style.fillDetails[0].gradient.type, 'radial');
   assert.equal(style.borders[0].width, 1);
   assert.equal(style.borders[0].css, '2rpx solid #ffffff');
@@ -178,6 +179,7 @@ test('Moonvy native gradient, stroke, shadow, artboard coordinates, and version 
   assert.equal(style.effects[0].css, '0rpx 8rpx 11.6rpx 0rpx rgba(158, 122, 212, 0.1)');
   assert.equal(style.css.boxShadow, '0rpx 8rpx 11.6rpx 0rpx rgba(158, 122, 212, 0.1)');
   assert.equal(style.css.border, '2rpx solid #ffffff');
+  assert.equal(style.css.boxSizing, 'border-box');
   assert.equal(style.css.left, '32rpx');
   assert.equal(style.css.top, '536rpx');
 
@@ -196,6 +198,138 @@ test('Moonvy native gradient, stroke, shadow, artboard coordinates, and version 
   });
   assert.equal(meta.updatedAt, '2026-09-01T02:55:08.483Z');
   assert.deepEqual(meta.version, { id: 'version-1', number: 7, count: 9 });
+});
+
+function styleForNode(node) {
+  const frame = { id: 'frame', type: 'artboard', rect: { x: 0, y: 0, w: 375, h: 812 }, children: [node] };
+  const design = { pages: [frame] };
+  return { design, style: extractNodeStyle(design, node, frame) };
+}
+
+const buttonGradient = {
+  type: 'linear', angle: 0, onlyAngle: false,
+  from: { x: -3.3208574223841936e-9, y: 0.10294120125120099 },
+  to: { x: 0.9999999928974556, y: 0.9411763657834493 },
+  aspect: { x: -0.41911758558698176, y: 4.089100575793854 },
+  stops: [
+    { position: 0, color: { r: 56, g: 213, b: 241 } },
+    { position: 1, color: { r: 148, g: 148, b: 255 } },
+  ],
+};
+
+function gradientStyle(gradient, extra = {}) {
+  return styleForNode({ id: 'gradient', rect: { x: 0, y: 0, w: 112, h: 34 }, fills: [{ type: 'gradient', gradient, ...extra }] });
+}
+
+test('native linear handles match Moonvy CSS and are consistent across tree and tokens', () => {
+  const { style, design } = gradientStyle(buttonGradient);
+  const expected = 'linear-gradient(96deg, #38d5f1 0.98%, #9494ff 119.7%)';
+  assert.equal(style.background, expected);
+  assert.equal(style.fillDetails[0].css, expected);
+  assert.equal(style.fillDetails[0].gradient.angle, 0); // Original data is retained.
+  assert.equal(style.fillDetails[0].gradient.onlyAngle, false);
+  assert.deepEqual(extractTokens(design).gradients, [expected]);
+  assert.deepEqual(buildTree(design).tree[0].children[0].style, style);
+});
+
+test('onlyAngle and out-of-range native stop ratios retain their semantics', () => {
+  const gradient = { ...buttonGradient, onlyAngle: true, angle: 45,
+    stops: buttonGradient.stops.map((s, index) => ({ ...s, position: index ? 1.2 : -0.2 })) };
+  assert.equal(gradientStyle(gradient).style.background, 'linear-gradient(45deg, #38d5f1 -20%, #9494ff 120%)');
+  assert.equal(gradientStyle(gradient, { opacity: 0.5 }).style.background,
+    'linear-gradient(45deg, rgba(56, 213, 241, 0.5) -20%, rgba(148, 148, 255, 0.5) 120%)');
+});
+
+test('linear handle direction and stop projection work on every axis', () => {
+  const cases = [
+    [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }, { x: 0, y: 1 }, 90],
+    [{ x: 1, y: 0.5 }, { x: 0, y: 0.5 }, { x: 1, y: 0 }, 270],
+    [{ x: 0.5, y: 1 }, { x: 0.5, y: 0 }, { x: 1, y: 1 }, 0],
+    [{ x: 0.5, y: 0 }, { x: 0.5, y: 1 }, { x: 0, y: 0 }, 180],
+  ];
+  for (const [from, to, aspect, angle] of cases) {
+    assert.equal(gradientStyle({ ...buttonGradient, from, to, aspect }).style.background,
+      `linear-gradient(${angle}deg, #38d5f1 0%, #9494ff 100%)`);
+  }
+});
+
+test('incomplete or degenerate gradient handles have a finite angle fallback', () => {
+  for (const extra of [{ aspect: null }, { from: {} }, { to: buttonGradient.from }, { aspect: buttonGradient.from }]) {
+    assert.equal(gradientStyle({ ...buttonGradient, angle: 37, ...extra }).style.background,
+      'linear-gradient(37deg, #38d5f1 0%, #9494ff 100%)');
+  }
+  assert.equal(gradientStyle({ ...buttonGradient, type: 'radial', aspect: null }).style.background,
+    'radial-gradient(circle at 0% 10.29%, #38d5f1 0%, #9494ff 100%)');
+});
+
+test('percentage, pixel, automatic and missing line heights are distinct', () => {
+  const cases = [
+    [{ value: 150, unit: 'per' }, 150, '%', '150%'],
+    [{ value: 150, unit: '%' }, 150, '%', '150%'],
+    [{ value: 200, unit: 'per' }, 200, '%', '200%'],
+    [{ value: 24, unit: 'px' }, 24, 'px', '48rpx'],
+    [{ value: 24 }, 24, 'px', '48rpx'],
+    [24, 24, 'px', '48rpx'],
+    [{ value: 0, unit: 'px' }, 0, 'px', '0rpx'],
+    ['auto', null, 'auto', 'normal'],
+    [null, null, null, undefined],
+    [undefined, null, null, undefined],
+  ];
+  for (const [lineHeight, value, unit, css] of cases) {
+    const { style, design } = styleForNode({ id: 'text', type: 'text', textbox: {
+      text: '王三', segments: [{ fontSize: 16, lineHeight }],
+    } });
+    assert.equal(style.typography.lineHeight, value);
+    assert.equal(style.typography.lineHeightUnit, unit);
+    assert.equal(style.css.lineHeight, css);
+    assert.deepEqual(extractTokens(design).lineHeightDetails, unit === null ? [] : [{ value, unit, css }]);
+    assert.deepEqual(buildTree(design).tree[0].children[0].style, style);
+  }
+});
+
+test('linked text styles preserve line height units and allow local overrides', () => {
+  const node = { id: 'text', type: 'text', textLink: 'shared', textbox: { text: '标题', segments: [] } };
+  const { design } = styleForNode(node);
+  design.styles = { textStyles: [{ id: 'shared', data: { fontSize: 16, lineHeight: { value: 150, unit: 'per' } } }] };
+  assert.equal(extractNodeStyle(design, node).css.lineHeight, '150%');
+  node.textbox.segments = [{ lineHeight: { value: 24, unit: 'px' } }];
+  assert.equal(extractNodeStyle(design, node).css.lineHeight, '48rpx');
+});
+
+test('px/rpx conversion changes lengths but never percentage line heights or gradients', () => {
+  const { style } = gradientStyle(buttonGradient);
+  const px = styleToCss({ ...style, units: { cssUnit: 'px', scale: 1 } });
+  assert.equal(px.width, '112px');
+  assert.equal(px.background, style.css.background);
+  const { style: text } = styleForNode({ id: 'text', type: 'text', textbox: {
+    text: '标题', segments: [{ fontSize: 16, lineHeight: { value: 150, unit: 'per' } }],
+  } });
+  const textPx = styleToCss({ ...text, units: { cssUnit: 'px', scale: 1 } });
+  assert.equal(textPx.fontSize, '16px');
+  assert.equal(textPx.lineHeight, '150%');
+  assert.equal(styleToCss({ ...text, typography: { ...text.typography, lineHeight: 24, lineHeightUnit: 'px' },
+    units: { cssUnit: 'px', scale: 1 } }).lineHeight, '24px');
+});
+
+test('token details distinguish identical numeric line heights with different units', () => {
+  const nodes = ['per', 'px'].map((unit) => ({ id: unit, type: 'text', textbox: {
+    text: '标题', segments: [{ lineHeight: { value: 150, unit } }],
+  } }));
+  const design = { pages: [{ id: 'frame', type: 'artboard', rect: { w: 375, h: 812 }, children: nodes }] };
+  const tokens = extractTokens(design);
+  assert.deepEqual(tokens.lineHeights, [150]); // Legacy value-only field.
+  assert.equal(tokens.lineHeightDetails.length, 2);
+  assert.ok(tokens.lineHeightDetails.some((t) => t.unit === '%' && t.css === '150%'));
+  assert.ok(tokens.lineHeightDetails.some((t) => t.unit === 'px' && t.css === '300rpx'));
+});
+
+test('inside strokes use border-box without changing outside or absent strokes', () => {
+  for (const align of ['inside', 'outside', 'center']) {
+    const { style } = styleForNode({ id: 'border', strokes: [{ w: 1, align,
+      fills: [{ type: 'color', color: { r: 255, g: 255, b: 255 } }] }] });
+    assert.equal(style.css.boxSizing, align === 'inside' ? 'border-box' : undefined);
+  }
+  assert.equal(styleForNode({ id: 'empty' }).style.css.boxSizing, undefined);
 });
 
 test('tree, flat layers, metadata, and tokens are development-ready', () => {

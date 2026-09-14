@@ -31,6 +31,10 @@
 
 样式结果会同时返回源单位和 CSS 换算信息。Genome 的几何与效果数值保留为源 `px`，`units` 会明确给出 `cssUnit`、`scale` 和换算关系；移动端画板默认按 `750rpx` 基准生成整套 CSS。例如宽度为 `375px` 的画板使用 `1px = 2rpx`，阴影源值 `0px 4px 5.8px 0px` 会生成 `0rpx 8rpx 11.6rpx 0rpx`。可通过 `MOONVY_CSS_UNIT=px|rpx|auto`、`MOONVY_RPX_BASE_WIDTH` 和 `MOONVY_RPX_SCALE` 调整。
 
+CSS 由本项目根据 Genome 生成，并非直接复制浏览器标注面板。线性渐变按 Moonvy 的归一化控制点计算方向和色标位置；径向渐变保留 `from/to/aspect` 对应的椭圆尺寸。`fillDetails.gradient` 保留原始控制点、角度和 `onlyAngle`，`fillDetails.css` 为转换结果。控制点缺失或退化时会回退到原始角度或默认径向尺寸，不保证这类数据与月维面板完全一致。
+
+行高不是一律使用 `px`：`typography.lineHeightUnit` 区分 `%`、`px` 和 `auto`。例如 `{value: 150, unit: "per"}` 生成 `150%`，`{value: 24, unit: "px"}` 在 2 倍换算下生成 `48rpx`，自动行高生成 `normal`。Token 的 `lineHeightDetails` 返回 `{value, unit, css}`；旧的 `lineHeights` 数值列表仅保留用于兼容，不能将其中所有数值当作像素。内部描边会生成 `box-sizing: border-box`。
+
 ## 数据链路
 
 ```text
@@ -172,6 +176,7 @@ C:/work/school-web/src/assets/moonvy。
 - Moonvy 令牌过期后需要重新获取。
 - 本项目不绕过登录、项目权限或 Moonvy 服务端访问控制。
 - Genome 中不同设计工具版本的字段可能不完全一致；解析器保留了常见兼容字段，但仍建议用实际团队设计稿做一次端到端验收。
+- 当前文字样式以首个文本段为准；富文本分段的下划线、链接和其他覆盖样式尚未完整输出。
 
 ## 开发与测试
 
@@ -189,3 +194,13 @@ npm test
 3. moonvy_get_ui_spec(设计文件 URL)
 4. moonvy_get_node_style(设计文件 URL, 节点 ID)
 ```
+
+仓库另提供一次可复跑的多画板回归验证：
+
+```powershell
+# 默认从当前目录 .env 加载；已有其他配置文件时可指定其绝对路径。
+$env:DOTENV_CONFIG_PATH = 'C:/path/to/moonvy-ui-mcp/.env'
+node scripts/verify-live.mjs
+```
+
+该命令会启动当前源码的独立 stdio MCP 进程，只读验证 `test/fixtures/css-panel-baselines.json` 中 4 张画板、10 个图层的 CSS，并核对 `get_ui_spec`、`get_tree`、`extract_tokens` 与 `get_node_style` 的一致性。基准来自 2026-09-14 浏览器实际标注（颜色等价归一化为 hex，零扩展阴影显式保留 `0rpx`）；图层坐标累加父级后与画板坐标对照。验证固定使用 `1px = 2rpx`，不下载素材、不修改在线设计、不输出令牌，也不会随 `npm test` 自动运行。设计更新后应先在浏览器核对，再更新基准，不能直接把当前解析结果当成正确答案。

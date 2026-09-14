@@ -114,12 +114,46 @@ export function colorToCss(color, opacity = 1) {
     .join('')}`;
 }
 
-function gradientStopToCss(stop, fillOpacity = 1) {
+function gradientStopToCss(stop, fillOpacity = 1, cssPosition = undefined) {
   const color = colorToCss(stop?.color ?? stop, (finiteNumber(stop?.opacity) ?? 1) * (finiteNumber(fillOpacity) ?? 1));
-  const position = finiteNumber(stop?.position ?? stop?.offset);
-  return [color, position === null ? null : `${tidyNumber(position * (position <= 1 ? 100 : 1))}%`]
+  const rawPosition = stop?.position ?? stop?.offset;
+  const position = cssPosition === undefined
+    ? rawPosition == null ? null : finiteNumber(rawPosition)
+    : cssPosition;
+  return [color, position === null ? null : `${tidyNumber(cssPosition === undefined ? position * (position <= 1 ? 100 : 1) : position, 2)}%`]
     .filter(Boolean)
     .join(' ');
+}
+
+function gradientPoint(point) {
+  if (point?.x == null || point?.y == null) return null;
+  const x = finiteNumber(point.x);
+  const y = finiteNumber(point.y);
+  return x === null || y === null ? null : { x, y };
+}
+
+// Moonvy's CSS encoder projects normalized handles onto the CSS gradient line
+// of a unit square, not the node's pixel-sized rectangle.
+function linearGradientGeometry(gradient) {
+  if (gradient.onlyAngle) return null;
+  const from = gradientPoint(gradient.from);
+  const to = gradientPoint(gradient.to);
+  const aspect = gradientPoint(gradient.aspect);
+  if (!from || !to || !aspect) return null;
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const distance = Math.hypot(dx, dy);
+  const cross = dx * (aspect.y - from.y) - dy * (aspect.x - from.x);
+  if (distance < 1e-10 || Math.abs(cross) < 1e-10) return null;
+  let angle = Math.atan2(from.y - aspect.y, from.x - aspect.x) * 180 / Math.PI;
+  if (cross > 0) angle -= 180;
+  angle = (angle + 360) % 360;
+  const radians = angle * Math.PI / 180;
+  const direction = { x: Math.sin(radians), y: -Math.cos(radians) };
+  const length = Math.abs(direction.x) + Math.abs(direction.y);
+  const start = { x: 0.5 - direction.x * length / 2, y: 0.5 - direction.y * length / 2 };
+  const offset = ((from.x - start.x) * direction.x + (from.y - start.y) * direction.y) / length;
+  return { angle: tidyNumber(angle, 2), offset, scale: distance / length };
 }
 
 function fillToCss(fill) {
@@ -131,15 +165,34 @@ function fillToCss(fill) {
     const kind = String(gradient.type ?? fill.gradientType ?? fill.type ?? '').toLowerCase();
     const prefix = kind.includes('radial') ? 'radial-gradient' : 'linear-gradient';
     const angle = finiteNumber(gradient.angle ?? gradient.degree ?? fill.angle ?? fill.degree);
-    let head = prefix === 'linear-gradient' && angle !== null ? `${tidyNumber(angle)}deg, ` : '';
-    if (prefix === 'radial-gradient' && gradient.from) {
-      const centerX = finiteNumber(gradient.from.x);
-      const centerY = finiteNumber(gradient.from.y);
-      if (centerX !== null && centerY !== null) {
-        head = `circle at ${tidyNumber(centerX * 100)}% ${tidyNumber(centerY * 100)}%, `;
+    const geometry = prefix === 'linear-gradient' ? linearGradientGeometry(gradient) : null;
+    const cssAngle = geometry?.angle ?? angle;
+    let head = prefix === 'linear-gradient' && cssAngle !== null ? `${tidyNumber(cssAngle, 2)}deg, ` : '';
+    if (prefix === 'radial-gradient') {
+      const from = gradientPoint(gradient.from);
+      const to = gradientPoint(gradient.to);
+      const aspect = gradientPoint(gradient.aspect);
+      if (from) {
+        let size = 'circle';
+        if (to && aspect) {
+          const points = [from, to, aspect];
+          const width = Math.max(...points.map((p) => p.x)) - Math.min(...points.map((p) => p.x));
+          const height = Math.max(...points.map((p) => p.y)) - Math.min(...points.map((p) => p.y));
+          size = `${tidyNumber(width * 100, 2)}% ${tidyNumber(height * 100, 2)}%`;
+        }
+        head = `${size} at ${tidyNumber(from.x * 100, 2)}% ${tidyNumber(from.y * 100, 2)}%, `;
       }
     }
-    return `${prefix}(${head}${stops.map((stop) => gradientStopToCss(stop, opacity)).filter(Boolean).join(', ')})`;
+    const cssStops = stops.map((stop) => {
+      const rawPosition = stop?.position ?? stop?.offset;
+      const position = rawPosition == null ? null : finiteNumber(rawPosition);
+      // Native Genome stops are ratios, including values outside [0, 1].
+      const cssPosition = position === null ? null : geometry
+        ? (position * geometry.scale + geometry.offset) * 100
+        : fill.gradient ? position * 100 : undefined;
+      return gradientStopToCss(stop, opacity, cssPosition);
+    });
+    return `${prefix}(${head}${cssStops.filter(Boolean).join(', ')})`;
   }
 
   if (fill.type === 'color' || fill.color) return colorToCss(fill.color ?? fill, opacity);
@@ -169,6 +222,7 @@ function normalizeFillDetail(fill) {
         to: gradient.to ?? null,
         aspect: gradient.aspect ?? null,
         angle: tidyNumber(gradient.angle ?? gradient.degree),
+        onlyAngle: gradient.onlyAngle ?? null,
       },
     };
   }
@@ -195,6 +249,30 @@ function normalizeRadius(radius) {
   return tidyNumber(radius);
 }
 
+function normalizeLineHeight(raw) {
+  const rawUnit = typeof raw === 'object' && raw !== null ? raw.unit : null;
+  const value = typeof raw === 'object' && raw !== null ? raw.value : raw;
+  if (value === 'auto' || value === 'normal' || rawUnit === 'auto') return { value: null, unit: 'auto' };
+  if (value == null || value === '') return { value: null, unit: null };
+  const number = tidyNumber(value);
+  if (number === null) return { value: null, unit: null };
+  const unit = String(rawUnit ?? 'px').toLowerCase();
+  return {
+    value: number,
+    unit: ['per', 'percent', 'percentage', '%'].includes(unit) ? '%'
+      : ['pixel', 'pixels', 'px'].includes(unit) ? 'px' : unit,
+  };
+}
+
+function lineHeightToCss(text, units) {
+  if (text.lineHeightUnit === 'auto') return 'normal';
+  if (text.lineHeight == null) return undefined;
+  if (text.lineHeightUnit === '%') return `${text.lineHeight}%`;
+  if (text.lineHeightUnit === 'number') return String(text.lineHeight);
+  if (text.lineHeightUnit == null || text.lineHeightUnit === 'px') return cssLength(text.lineHeight, units);
+  return undefined;
+}
+
 function extractTypography(node, genome) {
   const segment = node?.textbox?.segments?.[0] ?? {};
   const linkedId = node?.textLink ?? segment.textLink;
@@ -202,7 +280,7 @@ function extractTypography(node, genome) {
   const linkedData = linked?.data ?? linked ?? {};
   const source = { ...linkedData, ...segment };
   const fills = source.fills ?? source.fill ? (source.fills ?? [source.fill]) : [];
-  const lineHeight = source.lineHeight?.value ?? source.lineHeight;
+  const lineHeight = normalizeLineHeight(source.lineHeight);
   const letterSpacing = source.letterSpacing?.value ?? source.letterSpacing;
   const text = node?.textbox?.text ?? node?.characters ?? node?.text ?? null;
 
@@ -213,7 +291,8 @@ function extractTypography(node, genome) {
     fontStyle: source.fontName?.style ?? source.fontStyle ?? null,
     fontSize: tidyNumber(source.fontSize),
     fontWeight: source.fontWeight ?? null,
-    lineHeight: tidyNumber(lineHeight),
+    lineHeight: lineHeight.value,
+    lineHeightUnit: lineHeight.unit,
     letterSpacing: tidyNumber(letterSpacing),
     textAlign: source.textAlign ?? node?.textbox?.align ?? null,
     color: fills.length > 0 ? fillToCss(fills[0]) : null,
@@ -343,7 +422,10 @@ export function styleToCss(style) {
   if (Array.isArray(radius)) css.borderRadius = radius.map((value) => cssLength(value ?? 0, units)).join(' ');
   else if (radius !== null && radius !== undefined) css.borderRadius = cssLength(radius, units);
   const border = style?.borders?.[0];
-  if (border?.css) css.border = border.css;
+  if (border?.css) {
+    css.border = border.css;
+    if (border.position === 'inside') css.boxSizing = 'border-box';
+  }
   if (style?.effects?.length) {
     css.boxShadow = style.effects
       .filter((effect) => String(effect.type).toLowerCase().includes('shadow'))
@@ -356,7 +438,7 @@ export function styleToCss(style) {
     if (text.fontFamily) css.fontFamily = text.fontFamily;
     if (text.fontSize !== null) css.fontSize = cssLength(text.fontSize, units);
     if (text.fontWeight !== null) css.fontWeight = String(text.fontWeight);
-    if (text.lineHeight !== null) css.lineHeight = cssLength(text.lineHeight, units);
+    css.lineHeight = lineHeightToCss(text, units);
     if (text.letterSpacing !== null) css.letterSpacing = cssLength(text.letterSpacing, units);
     if (text.textAlign) css.textAlign = text.textAlign;
   }
@@ -491,6 +573,7 @@ export function extractTokens(genome) {
   const fontSizes = [];
   const fontWeights = [];
   const lineHeights = [];
+  const lineHeightDetails = [];
   const letterSpacings = [];
   const radii = [];
   const spacing = [];
@@ -510,6 +593,11 @@ export function extractTokens(genome) {
       if (typography.fontSize !== null) fontSizes.push(typography.fontSize);
       if (typography.fontWeight !== null) fontWeights.push(String(typography.fontWeight));
       if (typography.lineHeight !== null) lineHeights.push(typography.lineHeight);
+      if (typography.lineHeightUnit !== null) lineHeightDetails.push(JSON.stringify({
+        value: typography.lineHeight,
+        unit: typography.lineHeightUnit,
+        css: style.css.lineHeight ?? null,
+      }));
       if (typography.letterSpacing !== null) letterSpacings.push(typography.letterSpacing);
     }
     if (Array.isArray(style.borderRadius)) radii.push(...style.borderRadius.filter((value) => value !== null));
@@ -532,6 +620,7 @@ export function extractTokens(genome) {
     fontSizes: uniqueSortedNumbers(fontSizes),
     fontWeights: uniqueSortedStrings(fontWeights),
     lineHeights: uniqueSortedNumbers(lineHeights),
+    lineHeightDetails: uniqueSortedStrings(lineHeightDetails).map((value) => JSON.parse(value)),
     letterSpacings: uniqueSortedNumbers(letterSpacings),
     radii: uniqueSortedNumbers(radii),
     spacing: uniqueSortedNumbers(spacing),

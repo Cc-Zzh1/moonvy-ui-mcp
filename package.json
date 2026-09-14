@@ -1,6 +1,6 @@
 {
   "name": "moonvy-ui-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Read Moonvy design metadata, layers, UI parameters, design tokens, and assets through MCP.",
   "type": "module",
   "bin": {
