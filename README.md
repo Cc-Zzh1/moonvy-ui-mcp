@@ -130,12 +130,12 @@ env_vars = ["MOONVY_TOKEN"]
 }
 ```
 
-## 针对当前 Moonvy 链接的使用顺序
+## Moonvy 链接的使用顺序
 
-当前链接：
+示例链接（请将占位符替换为你有权限访问的项目和目录 ID）：
 
 ```text
-https://moonvy.com/project/89f75621-a0e7-4122-b9ee-b6b703e1c826/cf67c54c-8e2b-4809-9e4d-fc6512d0e0be
+https://moonvy.com/project/<projectId>/<dirId>
 ```
 
 它包含 `projectId + dirId`，指向文件夹而不是具体设计文件，因此建议：
